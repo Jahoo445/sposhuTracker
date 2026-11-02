@@ -1,0 +1,23 @@
+<section class="login">
+  <div class="card">
+    <img class="logo" src="sposhulist.png" alt="" />
+    <h1>Willkommen beim Hörspiel-Checker</h1>
+    <p class="lead">
+      Melde dich an, um deine Durchgänge zu speichern und jede Folge zu bewerten.
+      Deine Bewertungen siehst nur du.
+    </p>
+
+    @if (_isConfigured) {
+      <div class="google-button" #googleButton></div>
+      @if (_isLoading()) {
+        <p class="hint">Anmeldung wird geladen…</p>
+      }
+    } @else {
+      <p class="error">Die Google-Anmeldung ist noch nicht eingerichtet.</p>
+    }
+
+    @if (_error()) {
+      <p class="error">{{ _error() }}</p>
+    }
+  </div>
+</section>

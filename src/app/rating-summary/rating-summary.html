@@ -1,0 +1,38 @@
+<div class="score">
+  <span class="score-value">
+    @if (_average() !== null) {
+      {{ _average() | number: '1.1-1' }}
+    } @else {
+      –
+    }
+  </span>
+  <div class="score-stars" aria-hidden="true">
+    @for (star of _stars; track star) {
+      <span class="star">
+        ★<span class="star-fill" [style.width.%]="_starFill(star)">★</span>
+      </span>
+    }
+  </div>
+  <span class="score-meta">
+    {{ _reviewCount() }} {{ _reviewCount() === 1 ? 'Bewertung' : 'Bewertungen' }}
+    · {{ listens().length }}× gehört
+  </span>
+</div>
+
+<div class="topics">
+  @for (topic of _topicRows(); track topic.key) {
+    <div class="topic">
+      <span class="topic-label">{{ topic.label }}</span>
+      <div class="bar">
+        <div class="bar-fill" [style.width.%]="(topic.value ?? 0) * 20"></div>
+      </div>
+      <span class="topic-value">
+        @if (topic.value !== null) {
+          {{ topic.value | number: '1.1-1' }}
+        } @else {
+          –
+        }
+      </span>
+    </div>
+  }
+</div>

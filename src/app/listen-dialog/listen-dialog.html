@@ -1,0 +1,131 @@
+<div class="backdrop" (click)="closed.emit()">
+  <div class="dialog" role="dialog" aria-modal="true" [attr.aria-label]="album().name" (click)="$event.stopPropagation()">
+    <header class="hero">
+      @if (album().images[0]?.url) {
+        <div class="hero-bg" [style.background-image]="'url(' + album().images[0].url + ')'"></div>
+        <img class="cover" [src]="album().images[0].url" [alt]="album().name" />
+      }
+      <div class="hero-text">
+        <h2>{{ album().name }}</h2>
+        <p>
+          {{ listens().length }}× gehört
+          @if (listens()[0]; as last) {
+            · zuletzt am {{ last.listenedAt | date: 'dd.MM.yyyy' }}
+          }
+        </p>
+      </div>
+      <button type="button" class="close-button" aria-label="Schliessen" (click)="closed.emit()">✕</button>
+    </header>
+
+    <div class="body">
+      @if (_hasReviews()) {
+        <app-rating-summary [listens]="listens()" [topics]="topics()" />
+      }
+
+      <section class="card form" [class.editing]="_editingListen()">
+        <div class="section-head">
+          <h3>
+            @if (_editingListen(); as editing) {
+              Durchgang vom {{ editing.listenedAt | date: 'dd.MM.yyyy' }} bearbeiten
+            } @else {
+              Heutigen Durchgang bewerten
+            }
+          </h3>
+          @if (_ratedCount() > 0) {
+            @for (bump of [_ratedCount()]; track bump) {
+              <span class="rated-counter" title="Stern erneut klicken zum Entfernen">
+                {{ _ratedCount() }}/{{ topics().length }} bewertet
+              </span>
+            }
+          } @else {
+            <span class="hint">Stern erneut klicken zum Entfernen</span>
+          }
+        </div>
+
+        <div class="rating-rows">
+          @for (topic of topics(); track topic.key) {
+            <div
+              class="rating-row"
+              [class.rated]="_ratings()[topic.key]"
+              [class.just-rated]="_justRated() === topic.key"
+            >
+              <span class="topic-label">{{ topic.label }}</span>
+              <div class="stars" role="radiogroup" [attr.aria-label]="topic.label" (mouseleave)="_hover.set(null)">
+                @for (star of _stars; track star) {
+                  <button
+                    type="button"
+                    class="star"
+                    role="radio"
+                    [style.--i]="star"
+                    [class.filled]="_shownRating(topic.key) >= star"
+                    [class.pop]="_justRated() === topic.key && _ratings()[topic.key] >= star"
+                    [attr.aria-label]="topic.label + ' ' + star"
+                    [attr.aria-checked]="_ratings()[topic.key] === star"
+                    (mouseenter)="_hover.set({ topic: topic.key, value: star })"
+                    (click)="_setRating(topic.key, star)"
+                  >★</button>
+                }
+              </div>
+            </div>
+          }
+        </div>
+
+        @if (_error()) {
+          <p class="error">{{ _error() }}</p>
+        }
+
+        <div class="actions">
+          @if (_editingListen()) {
+            <button type="button" class="btn ghost" (click)="_cancelEdit()">Abbrechen</button>
+          }
+          <button type="button" class="btn primary" [disabled]="_isSaving()" (click)="_save()">
+            @if (_isSaving()) {
+              Wird gespeichert…
+            } @else if (_editingListen()) {
+              Änderungen speichern
+            } @else {
+              + Als gehört eintragen
+            }
+          </button>
+        </div>
+      </section>
+
+      <section class="history">
+        <h3>Verlauf <span class="history-count">{{ listens().length }}</span></h3>
+        <div class="history-list">
+        @for (listen of listens(); track listen.id) {
+          <div class="entry" [class.editing]="_editingId() === listen.id">
+            <span class="entry-date">{{ listen.listenedAt | date: 'dd.MM.yyyy' }}</span>
+            <app-star-rating [value]="_listenAverage(listen)" />
+            <button
+              type="button"
+              class="icon-button edit"
+              title="Bewertung bearbeiten"
+              aria-label="Bewertung bearbeiten"
+              (click)="_startEdit(listen)"
+            >
+              <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true">
+                <path fill="currentColor" d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25ZM20.71 7.04a1 1 0 0 0 0-1.41l-2.34-2.34a1 1 0 0 0-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83Z" />
+              </svg>
+            </button>
+            <button
+              type="button"
+              class="icon-button delete"
+              title="Eintrag löschen"
+              aria-label="Eintrag löschen"
+              [disabled]="_deletingId() === listen.id"
+              (click)="_delete(listen)"
+            >
+              <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true">
+                <path fill="currentColor" d="M9 3h6l1 2h4v2H4V5h4l1-2Zm-3 6h12l-1 12H7L6 9Zm4 2v8h2v-8h-2Zm4 0v8h2v-8h-2Z" />
+              </svg>
+            </button>
+          </div>
+        } @empty {
+          <p class="empty">Noch nicht gehört.</p>
+        }
+        </div>
+      </section>
+    </div>
+  </div>
+</div>

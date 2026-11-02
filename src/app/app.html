@@ -1,5 +1,22 @@
-<h1 class="title">Audiobook Checker</h1>
+<header class="app-header">
+  <a routerLink="/" class="brand" aria-label="Zur Startseite">
+    <img src="sposhulist.png" alt="" />
+    <span>Hörspiel-Checker</span>
+  </a>
 
-<!-- <app-list-selection></app-list-selection> -->
+  @if (_user(); as user) {
+    <div class="account">
+      @if (user.picture) {
+        <img class="avatar" [src]="user.picture" alt="" referrerpolicy="no-referrer" />
+      } @else {
+        <span class="avatar initial">{{ user.name.charAt(0) }}</span>
+      }
+      <span class="account-name" [title]="user.email">{{ user.name }}</span>
+      <button type="button" class="logout" (click)="_logout()">Abmelden</button>
+    </div>
+  }
+</header>
 
-<router-outlet />
+<main class="app-main">
+  <router-outlet />
+</main>

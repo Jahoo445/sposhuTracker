@@ -43,7 +43,7 @@ export class ListSelection implements OnInit {
     try {
       await this._refreshArtists();
     } catch {
-      this._error.set('Audiobooks could not be loaded.');
+      this._error.set('Hörspiele konnten nicht geladen werden.');
     } finally {
       this._isLoading.set(false);
     }
@@ -75,7 +75,7 @@ export class ListSelection implements OnInit {
       }
     } catch {
       if (this._audiobooks().length === 0) {
-        throw new Error('Artists could not be refreshed.');
+        throw new Error('Künstler konnten nicht aktualisiert werden.');
       }
     }
   }

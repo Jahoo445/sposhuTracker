@@ -1,16 +1,36 @@
+<section class="intro">
+  <h1>Was hörst du heute?</h1>
+  <p>Wähle eine Serie, um deine Folgen zu verfolgen und zu bewerten.</p>
+</section>
+
 @if (_isLoading()) {
-  <p>Loading...</p>
+  <div class="series-grid">
+    @for (placeholder of [1, 2, 3, 4]; track placeholder) {
+      <div class="series-card skeleton">
+        <div class="series-image"></div>
+        <div class="series-name">&nbsp;</div>
+      </div>
+    }
+  </div>
 } @else if (_error()) {
-  <p>{{ _error() }}</p>
+  <p class="message">{{ _error() }}</p>
 } @else {
-  <div class="button-list">
+  <div class="series-grid">
     @for (audiobook of _audiobooks(); track audiobook.artistId) {
-      <button type="button" class="image-button" (click)="_selectAudiobook(audiobook)">
-        @if (audiobook.imageUrl) {
-          <img [src]="audiobook.imageUrl" [alt]="audiobook.artistName" />
-        } @else {
+      <button type="button" class="series-card" (click)="_selectAudiobook(audiobook)">
+        <div class="series-image">
+          @if (audiobook.imageUrl) {
+            <img [src]="audiobook.imageUrl" [alt]="audiobook.artistName" />
+          } @else {
+            <span class="fallback">{{ audiobook.artistName }}</span>
+          }
+        </div>
+        <div class="series-name">
           <span>{{ audiobook.artistName }}</span>
-        }
+          <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
+            <path fill="currentColor" d="M9 6l6 6-6 6-1.4-1.4L12.2 12 7.6 7.4z" />
+          </svg>
+        </div>
       </button>
     }
   </div>
