@@ -3,10 +3,15 @@ import { Router } from '@angular/router';
 import { HttpClient } from '@angular/common/http';
 import { Injectable, computed, inject, signal } from '@angular/core';
 import { API_BASE_URL, GOOGLE_CLIENT_ID } from '../config';
+import {
+  SessionUser,
+  clearSessionToken,
+  readSessionToken,
+  sessionUser,
+  writeSessionToken
+} from './session-cookie';
 
-export type User = { id: string; email: string; name: string; picture: string };
-
-type Session = { token: string; user: User };
+export type User = SessionUser;
 
 type GoogleIdentity = {
   accounts: {
@@ -18,7 +23,8 @@ type GoogleIdentity = {
   };
 };
 
-const STORAGE_KEY = 'sposhu.session';
+/** Where sessions were kept before the login was shared with SpoShu. */
+const LEGACY_STORAGE_KEY = 'sposhu.session';
 const GOOGLE_SCRIPT = 'https://accounts.google.com/gsi/client';
 
 @Injectable({
@@ -28,23 +34,30 @@ export class AuthService {
   private readonly _http = inject(HttpClient);
   private readonly _router = inject(Router);
 
-  private readonly _session = signal<Session | null>(this._loadSession());
+  private readonly _token = signal<string | null>(this._loadToken());
 
-  public readonly user = computed(() => this._session()?.user ?? null);
-  public readonly isLoggedIn = computed(() => this._session() !== null);
+  public readonly user = computed(() => {
+    const token = this._token();
+    return token ? sessionUser(token) : null;
+  });
+  public readonly isLoggedIn = computed(() => this._token() !== null);
   public readonly isConfigured = GOOGLE_CLIENT_ID.length > 0;
 
   private _google: Promise<GoogleIdentity> | null = null;
 
+  constructor() {
+    // Signing in or out in SpoShu changes the shared cookie: pick that up when the user comes back.
+    window.addEventListener('focus', () => this._syncWithCookie());
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'visible') {
+        this._syncWithCookie();
+      }
+    });
+  }
+
   public get token(): string | null {
-    const session = this._session();
-
-    if (session && this._isExpired(session.token)) {
-      this.logout();
-      return null;
-    }
-
-    return session?.token ?? null;
+    this._syncWithCookie();
+    return this._token();
   }
 
   /** Renders the "Sign in with Google" button; resolves once the login succeeded. */
@@ -67,49 +80,61 @@ export class AuthService {
   }
 
   public logout(): void {
-    try {
-      localStorage.removeItem(STORAGE_KEY);
-    } catch {
-      // Storage unavailable: the session only lived in memory.
-    }
-
-    this._session.set(null);
+    clearSessionToken();
+    this._token.set(null);
     this._loadGoogle().then(google => google.accounts.id.disableAutoSelect()).catch(() => undefined);
     void this._router.navigate([ '/login' ]);
   }
 
   private async _login(credential: string): Promise<void> {
-    const session = await firstValueFrom(
-      this._http.post<Session>(`${API_BASE_URL}/auth/google`, { credential })
+    const { token } = await firstValueFrom(
+      this._http.post<{ token: string }>(`${API_BASE_URL}/auth/google`, { credential })
     );
 
-    try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(session));
-    } catch {
-      // Storage unavailable: stay logged in for this tab only.
-    }
-
-    this._session.set(session);
+    writeSessionToken(token);
+    this._token.set(token);
   }
 
-  private _loadSession(): Session | null {
-    try {
-      const session = JSON.parse(localStorage.getItem(STORAGE_KEY) ?? 'null') as Session | null;
-      return session?.token && !this._isExpired(session.token) ? session : null;
-    } catch {
-      return null;
+  /** Follows the shared cookie: logged out elsewhere → login page; logged in elsewhere → into the app. */
+  private _syncWithCookie(): void {
+    const token = readSessionToken();
+
+    if (token === this._token()) {
+      return;
+    }
+
+    this._token.set(token);
+
+    const onLoginPage = this._router.url.startsWith('/login');
+
+    if (!token && !onLoginPage) {
+      void this._router.navigate([ '/login' ]);
+    } else if (token && onLoginPage) {
+      void this._router.navigateByUrl('/');
     }
   }
 
-  /** The token's expiry is readable (only its signature is secret), so we drop old sessions early. */
-  private _isExpired(token: string): boolean {
-    try {
-      const payload = token.split('.')[ 0 ].replace(/-/g, '+').replace(/_/g, '/');
-      const { exp } = JSON.parse(atob(payload)) as { exp?: number };
-      return !(typeof exp === 'number' && exp > Date.now());
-    } catch {
-      return true;
+  private _loadToken(): string | null {
+    const token = readSessionToken();
+
+    if (token) {
+      return token;
     }
+
+    // One-time move of a session from the old localStorage key into the shared cookie.
+    try {
+      const legacy = JSON.parse(localStorage.getItem(LEGACY_STORAGE_KEY) ?? 'null') as { token?: string } | null;
+      localStorage.removeItem(LEGACY_STORAGE_KEY);
+
+      if (legacy?.token) {
+        writeSessionToken(legacy.token);
+        return readSessionToken();
+      }
+    } catch {
+      // Storage unavailable or broken: simply log in again.
+    }
+
+    return null;
   }
 
   private _loadGoogle(): Promise<GoogleIdentity> {
