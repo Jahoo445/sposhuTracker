@@ -1,10 +1,9 @@
 import { Router } from '@angular/router';
-import { AudiobookArtist } from '../../types/AudiobookArtist';
-import { SpotifyService } from '../../services/spotify.service';
 import { Component, OnInit, inject, signal } from '@angular/core';
-import { AudiobookService } from '../../services/audiobook.service';
+import { Series } from '../../types/Series';
+import { CatalogService } from '../../services/catalog.service';
 import { ArtistCacheService } from '../../services/artist-cache.service';
-import { AudiobookArtistWithImage } from '../../types/AudiobookArtistWithImage';
+import { AuthService } from '../../services/auth.service';
 
 @Component({
   selector: 'app-list-selection',
@@ -13,89 +12,57 @@ import { AudiobookArtistWithImage } from '../../types/AudiobookArtistWithImage';
   styleUrl: './list-selection.scss'
 })
 export class ListSelection implements OnInit {
-  private readonly _audiobookService = inject(AudiobookService);
-  private readonly _spotifyService = inject(SpotifyService);
+  private readonly _catalogService = inject(CatalogService);
   private readonly _artistCacheService = inject(ArtistCacheService);
   private readonly _router = inject(Router);
+  private readonly _authService = inject(AuthService);
 
-  protected readonly _audiobooks = signal<AudiobookArtistWithImage[]>([]);
+  protected readonly _audiobooks = signal<Series[]>([]);
   protected readonly _isLoading = signal<boolean>(true);
-  protected readonly _isRefreshing = signal<boolean>(false);
   protected readonly _error = signal<string | null>(null);
 
   public async ngOnInit(): Promise<void> {
-    const cachedArtists = this._artistCacheService.getArtists();
+    // Last visit's list first, so the page is there immediately; the fresh list replaces it below.
+    const cached = this._artistCacheService.getArtists();
 
-    if (cachedArtists.length > 0) {
-      this._audiobooks.set(cachedArtists);
+    if (cached.length > 0) {
+      this._audiobooks.set(cached);
       this._isLoading.set(false);
-      this._isRefreshing.set(true);
-
-      try {
-        await this._refreshArtists();
-      } finally {
-        this._isRefreshing.set(false);
-      }
-
-      return;
     }
 
+    const userId = this._authService.user()?.id;
+
     try {
-      await this._refreshArtists();
+      const series = await this._catalogService.getSeries();
+
+      // Signed out (or switched accounts) while loading: don't put the list back into the cache.
+      if (this._authService.user()?.id !== userId) {
+        return;
+      }
+
+      if (!this._isSameList(this._audiobooks(), series)) {
+        this._audiobooks.set(series);
+      }
+      this._artistCacheService.setArtists(series);
     } catch {
-      this._error.set('Hörspiele konnten nicht geladen werden.');
+      // With the cached list on screen, a failed refresh isn't worth an error.
+      if (cached.length === 0) {
+        this._error.set('Hörspiele konnten nicht geladen werden.');
+      }
     } finally {
       this._isLoading.set(false);
     }
   }
 
-  protected _selectAudiobook(audiobook: AudiobookArtistWithImage): void {
+  protected _selectAudiobook(audiobook: Series): void {
     void this._router.navigate([ '/artist', audiobook.artistId ]);
   }
 
-  private async _refreshArtists(): Promise<void> {
-    try {
-      const artists = await this._audiobookService.getAudiobookArtists();
-
-      const artistsWithImages = await Promise.all(
-        artists.map(async (artist: AudiobookArtist) => {
-          const spotifyArtist = await this._spotifyService.getArtist(artist.artistId);
-
-          return {
-            artistName: artist.artistName,
-            artistId: artist.artistId,
-            imageUrl: spotifyArtist.images[ 0 ]?.url ?? null
-          };
-        })
-      );
-
-      if (!this._areArtistsEqual(this._audiobooks(), artistsWithImages)) {
-        this._audiobooks.set(artistsWithImages);
-        this._artistCacheService.setArtists(artistsWithImages);
-      }
-    } catch {
-      if (this._audiobooks().length === 0) {
-        throw new Error('Künstler konnten nicht aktualisiert werden.');
-      }
-    }
-  }
-
-  private _areArtistsEqual(
-    currentArtists: AudiobookArtistWithImage[],
-    nextArtists: AudiobookArtistWithImage[]
-  ): boolean {
-    if (currentArtists.length !== nextArtists.length) {
-      return false;
-    }
-
-    return currentArtists.every((currentArtist, index) => {
-      const nextArtist = nextArtists[ index ];
-
-      return (
-        currentArtist.artistId === nextArtist.artistId &&
-        currentArtist.artistName === nextArtist.artistName &&
-        currentArtist.imageUrl === nextArtist.imageUrl
-      );
-    });
+  private _isSameList(current: Series[], next: Series[]): boolean {
+    return current.length === next.length && current.every((series, index) =>
+      series.artistId === next[ index ].artistId &&
+      series.artistName === next[ index ].artistName &&
+      series.imageUrl === next[ index ].imageUrl
+    );
   }
 }

@@ -3,6 +3,8 @@ import { Router } from '@angular/router';
 import { HttpClient } from '@angular/common/http';
 import { Injectable, computed, inject, signal } from '@angular/core';
 import { API_BASE_URL, GOOGLE_CLIENT_ID } from '../config';
+import { ArtistCacheService } from './artist-cache.service';
+import { EpisodePageCacheService } from './episode-page-cache.service';
 import {
   SessionUser,
   clearSessionToken,
@@ -26,6 +28,8 @@ type GoogleIdentity = {
 /** Where sessions were kept before the login was shared with SpoShu. */
 const LEGACY_STORAGE_KEY = 'sposhu.session';
 const GOOGLE_SCRIPT = 'https://accounts.google.com/gsi/client';
+/** Id of the user the local caches were written for. */
+const CACHE_OWNER_KEY = 'tracker.cache-owner';
 
 @Injectable({
   providedIn: 'root'
@@ -33,6 +37,8 @@ const GOOGLE_SCRIPT = 'https://accounts.google.com/gsi/client';
 export class AuthService {
   private readonly _http = inject(HttpClient);
   private readonly _router = inject(Router);
+  private readonly _artistCache = inject(ArtistCacheService);
+  private readonly _pageCache = inject(EpisodePageCacheService);
 
   private readonly _token = signal<string | null>(this._loadToken());
 
@@ -46,6 +52,10 @@ export class AuthService {
   private _google: Promise<GoogleIdentity> | null = null;
 
   constructor() {
+    // Signed out or switched accounts while the tracker was closed (e.g. in SpoShu):
+    // don't show or keep the previous user's data.
+    this._claimCaches(this.user()?.id ?? null);
+
     // Signing in or out in SpoShu changes the shared cookie: pick that up when the user comes back.
     window.addEventListener('focus', () => this._syncWithCookie());
     document.addEventListener('visibilitychange', () => {
@@ -82,6 +92,7 @@ export class AuthService {
   public logout(): void {
     clearSessionToken();
     this._token.set(null);
+    this._claimCaches(null);
     this._loadGoogle().then(google => google.accounts.id.disableAutoSelect()).catch(() => undefined);
     void this._router.navigate([ '/login' ]);
   }
@@ -103,14 +114,43 @@ export class AuthService {
       return;
     }
 
+    const previousUserId = this.user()?.id ?? null;
     this._token.set(token);
+    const userId = this.user()?.id ?? null;
+    this._claimCaches(userId);
 
     const onLoginPage = this._router.url.startsWith('/login');
 
-    if (!token && !onLoginPage) {
+    if (token && previousUserId && userId !== previousUserId && !onLoginPage) {
+      // Another account signed in elsewhere: start over so nothing of the previous one stays on screen.
+      window.location.assign('/');
+    } else if (!token && !onLoginPage) {
       void this._router.navigate([ '/login' ]);
     } else if (token && onLoginPage) {
       void this._router.navigateByUrl('/');
+    }
+  }
+
+  /**
+   * Cached pages hold a user's listens and library: they are deleted when the session ends
+   * or belongs to someone other than the user they were written for.
+   */
+  private _claimCaches(userId: string | null): void {
+    try {
+      if (localStorage.getItem(CACHE_OWNER_KEY) === userId) {
+        return;
+      }
+
+      this._pageCache.clearAll();
+      this._artistCache.clear();
+
+      if (userId) {
+        localStorage.setItem(CACHE_OWNER_KEY, userId);
+      } else {
+        localStorage.removeItem(CACHE_OWNER_KEY);
+      }
+    } catch {
+      // Storage unavailable: then nothing is cached either.
     }
   }
 
