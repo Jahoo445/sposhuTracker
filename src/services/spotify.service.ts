@@ -4,7 +4,8 @@ import { SpotifyAlbumItem } from '../types/SpotifyAlbumItem';
 import { HttpClient, HttpHeaders } from '@angular/common/http';
 import { SpotifyTokenResponse } from '../types/SpotifyTokenResponse';
 import { SpotifyArtistResponse } from '../types/SpotifyArtistResponse';
-import { SpotifyArtistAlbumsResponse } from '../types/SpotifyArtistAlbumsResponse';
+import { API_BASE_URL } from '../config';
+import { episodeTitle } from '../utils/episode-title';
 
 @Injectable({
   providedIn: 'root'
@@ -51,38 +52,23 @@ export class SpotifyService {
     );
   }
 
+  /**
+   * All episodes of a series. Comes from the backend, which keeps Spotify's paged album list
+   * (50 per request) cached for a day, so this is one fast request instead of several.
+   */
   public async getArtistAlbums(artistId: string): Promise<SpotifyAlbumItem[]> {
-    const token = await this.getAccessToken();
+    const albums = await firstValueFrom(
+      this._http.get<SpotifyAlbumItem[]>(
+        `${API_BASE_URL}/media/${encodeURIComponent(artistId)}`,
+        { params: { kind: 'audiobook' } }
+      )
+    );
 
-    const headers = new HttpHeaders({
-      Authorization: `Bearer ${token}`
-    });
-
-    const limit = 50;
-    let offset = 0;
-    let total = 0;
-
-    const albums: SpotifyAlbumItem[] = [];
-
-    do {
-      const response = await firstValueFrom(
-        this._http.get<SpotifyArtistAlbumsResponse>(
-          `https://api.spotify.com/v1/artists/${artistId}/albums?include_groups=album&limit=${limit}&offset=${offset}`,
-          { headers }
-        )
-      );
-
-      albums.push(...response.items);
-
-      total = response.total;
-      offset += limit;
-    } while (offset < total);
-
-    const filteredAlbums = albums
+    return albums
       .filter(album => /^(Folge|\d+)/i.test(album.name))
-      .filter(album => album.name !== '134/ der tote Mönch');
-
-    return filteredAlbums;
+      .filter(album => album.name !== '134/ der tote Mönch')
+      // Spotify mixes "208/Title" and "Folge 241: Title"; show them all as "Folge N: Title".
+      .map(album => ({ ...album, name: episodeTitle(album.name) }));
   }
 
   private _hasValidToken(): boolean {
