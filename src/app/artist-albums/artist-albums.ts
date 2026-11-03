@@ -11,6 +11,8 @@ import { SpotifyAlbumItem } from '../../types/SpotifyAlbumItem';
 import { Component, OnInit, computed, inject, signal } from '@angular/core';
 import { ArtistCacheService } from '../../services/artist-cache.service';
 import { ListenStorageService } from '../../services/listen-storage.service';
+import { AuthService } from '../../services/auth.service';
+import { EpisodePageCacheService, EpisodePageData } from '../../services/episode-page-cache.service';
 
 type AlbumFilter = 'all' | 'unheard' | 'heard';
 type HeardSort = 'name' | 'rating' | 'count';
@@ -31,6 +33,8 @@ export class ArtistAlbums implements OnInit {
   private readonly _spotifyService = inject(SpotifyService);
   private readonly _artistCacheService = inject(ArtistCacheService);
   private readonly _listenStorageService = inject(ListenStorageService);
+  private readonly _authService = inject(AuthService);
+  private readonly _pageCache = inject(EpisodePageCacheService);
 
   protected readonly _searchTerm = signal<string>('');
   protected readonly _isLoading = signal<boolean>(true);
@@ -168,6 +172,13 @@ export class ArtistAlbums implements OnInit {
     this._artistId.set(artistId);
     void this._loadArtistInfo(artistId);
 
+    // Last visit's data first, so the page is there immediately; fresh data replaces it below.
+    const userId = this._authService.user()?.id ?? null;
+    const cached = userId ? this._pageCache.read(userId, artistId) : null;
+    if (cached) {
+      this._showPage(artistId, cached);
+    }
+
     try {
       const [ albums, topics, listens ] = await Promise.all([
         this._spotifyService.getArtistAlbums(artistId),
@@ -175,25 +186,56 @@ export class ArtistAlbums implements OnInit {
         this._listenService.getListensForArtist(artistId)
       ]);
 
-      this._albums.set(albums);
-      this._topics.set(topics);
-      this._listens.set(listens);
-
-      // Deep link (artist/:artistId/:albumId) opens that episode right away.
-      const albumId = this._route.snapshot.paramMap.get('albumId');
-      const linkedAlbum = albumId ? albums.find(album => album.id === albumId) : undefined;
-
-      if (linkedAlbum) {
-        this._selectedAlbum.set(linkedAlbum);
-      } else if (albumId) {
-        this._location.replaceState(`/artist/${artistId}`);
+      this._showPage(artistId, { albums, topics, listens });
+      if (userId) {
+        this._pageCache.write(userId, artistId, { albums, topics, listens });
       }
 
       await this._migrateLocalListenCounts(artistId, albums, listens);
     } catch {
-      this._error.set('Folgen konnten nicht geladen werden.');
+      // With cached data on screen, a failed refresh isn't worth an error.
+      if (!cached) {
+        this._error.set('Folgen konnten nicht geladen werden.');
+      }
     } finally {
       this._isLoading.set(false);
+    }
+  }
+
+  private _deepLinkHandled = false;
+
+  private _showPage(artistId: string, { albums, topics, listens }: EpisodePageData): void {
+    this._albums.set(albums);
+    this._topics.set(topics);
+    this._listens.set(listens);
+    this._isLoading.set(false);
+
+    // An open popup keeps showing the same episode, now with the fresh data.
+    const selected = this._selectedAlbum();
+    if (selected) {
+      this._selectedAlbum.set(albums.find(album => album.id === selected.id) ?? selected);
+    }
+
+    if (this._deepLinkHandled) return;
+    this._deepLinkHandled = true;
+
+    // Deep link (artist/:artistId/:albumId) opens that episode right away.
+    const albumId = this._route.snapshot.paramMap.get('albumId');
+    const linkedAlbum = albumId ? albums.find(album => album.id === albumId) : undefined;
+
+    if (linkedAlbum) {
+      this._selectedAlbum.set(linkedAlbum);
+    } else if (albumId) {
+      this._location.replaceState(`/artist/${artistId}`);
+    }
+  }
+
+  /** Saves and deletes go into the cached copy too, so the next visit doesn't start out of date. */
+  private _cacheListens(): void {
+    const userId = this._authService.user()?.id;
+    const artistId = this._artistId();
+    if (userId && artistId) {
+      this._pageCache.updateListens(userId, artistId, this._listens());
     }
   }
 
@@ -210,10 +252,12 @@ export class ArtistAlbums implements OnInit {
 
   protected _onListenSaved(saved: Listen): void {
     this._listens.update(current => [ saved, ...current.filter(listen => listen.id !== saved.id) ]);
+    this._cacheListens();
   }
 
   protected _onListenDeleted(id: string): void {
     this._listens.update(current => current.filter(listen => listen.id !== id));
+    this._cacheListens();
   }
 
   protected _updateSearchTerm(value: string): void {
@@ -273,6 +317,7 @@ export class ArtistAlbums implements OnInit {
       );
 
       this._listens.update(current => [ ...current, ...imported ]);
+      this._cacheListens();
       this._listenStorageService.clearArtistListenCounts(artistId);
     } catch {
       // Keep the local data and retry on the next visit.
