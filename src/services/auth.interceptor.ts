@@ -11,6 +11,8 @@ export const authInterceptor: HttpInterceptorFn = (request, next) => {
   }
 
   const auth = inject(AuthService);
+  // Picks up a sign-in or sign-out in SpoShu before the request goes out.
+  auth.syncSession();
   const token = auth.token;
   const authorized = token
     ? request.clone({ setHeaders: { Authorization: `Bearer ${token}` } })

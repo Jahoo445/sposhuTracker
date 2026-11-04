@@ -57,16 +57,16 @@ export class AuthService {
     this._claimCaches(this.user()?.id ?? null);
 
     // Signing in or out in SpoShu changes the shared cookie: pick that up when the user comes back.
-    window.addEventListener('focus', () => this._syncWithCookie());
+    window.addEventListener('focus', () => this.syncSession());
     document.addEventListener('visibilitychange', () => {
       if (document.visibilityState === 'visible') {
-        this._syncWithCookie();
+        this.syncSession();
       }
     });
   }
 
+  /** The session token as last synced; call `syncSession()` first to pick up changes made in SpoShu. */
   public get token(): string | null {
-    this._syncWithCookie();
     return this._token();
   }
 
@@ -106,8 +106,11 @@ export class AuthService {
     this._token.set(token);
   }
 
-  /** Follows the shared cookie: logged out elsewhere → login page; logged in elsewhere → into the app. */
-  private _syncWithCookie(): void {
+  /**
+   * Follows the shared cookie: logged out elsewhere → login page; logged in elsewhere → into the app.
+   * May navigate (or reload the page when another account signed in), so it is called explicitly.
+   */
+  public syncSession(): void {
     const token = readSessionToken();
 
     if (token === this._token()) {

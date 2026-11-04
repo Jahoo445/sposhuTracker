@@ -63,6 +63,8 @@ export class ListenDialog {
   protected readonly _hover = signal<{ topic: string; value: number } | null>(null);
   protected readonly _isSaving = signal<boolean>(false);
   protected readonly _deletingId = signal<string | null>(null);
+  /** Listen whose delete button was clicked once; it is only deleted after confirming. */
+  protected readonly _confirmingDeleteId = signal<string | null>(null);
   protected readonly _error = signal<string | null>(null);
 
   /** Listen from the history whose rating is being edited (null = rating a new listen). */
@@ -78,8 +80,14 @@ export class ListenDialog {
   protected readonly _hasReviews = computed(() => averageRating(this.listens()) !== null);
   protected readonly _ratedCount = computed(() => Object.keys(this._ratings()).length);
 
+  /** Escape first backs out of a pending delete, then closes the popup. */
   @HostListener('document:keydown.escape')
   protected _onEscape(): void {
+    if (this._confirmingDeleteId()) {
+      this._confirmingDeleteId.set(null);
+      return;
+    }
+
     this.closed.emit();
   }
 
@@ -158,6 +166,7 @@ export class ListenDialog {
   }
 
   protected _startEdit(listen: Listen): void {
+    this._confirmingDeleteId.set(null);
     clearTimeout(this._justRatedTimer);
     this._justRated.set(null);
     this._editingId.set(listen.id);
@@ -177,6 +186,7 @@ export class ListenDialog {
 
     try {
       await this._listenService.deleteListen(listen.id);
+      this._confirmingDeleteId.set(null);
       this.listenDeleted.emit(listen.id);
 
       if (this._editingId() === listen.id) {

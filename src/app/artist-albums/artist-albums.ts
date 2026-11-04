@@ -54,6 +54,11 @@ export class ArtistAlbums implements OnInit {
   protected readonly _listens = signal<Listen[]>([]);
   protected readonly _selectedAlbum = signal<SpotifyAlbumItem | null>(null);
 
+  /** Saves and deletes since the fresh data was requested (null when nothing is loading). */
+  private _changesWhileLoading: { saved: Map<string, Listen>; deleted: Set<string> } | null = null;
+  /** Whether the episode from the address (artist/:artistId/:albumId) was opened or dropped already. */
+  private _deepLinkHandled = false;
+
   /** Listens per album, newest first. */
   protected readonly _listensByAlbum = computed(() => {
     const result: Record<string, Listen[]> = {};
@@ -187,9 +192,6 @@ export class ArtistAlbums implements OnInit {
     }
   }
 
-  /** Saves and deletes since the fresh data was requested (null when nothing is loading). */
-  private _changesWhileLoading: { saved: Map<string, Listen>; deleted: Set<string> } | null = null;
-
   private _withChangesWhileLoading(loaded: Listen[]): Listen[] {
     const changes = this._changesWhileLoading;
 
@@ -202,8 +204,6 @@ export class ArtistAlbums implements OnInit {
       ...loaded.filter(listen => !changes.saved.has(listen.id) && !changes.deleted.has(listen.id))
     ];
   }
-
-  private _deepLinkHandled = false;
 
   /** `fresh` is false for the cached copy, which may lack episodes released since. */
   private _showPage(artistId: string, { albums, topics, listens }: EpisodePageData, fresh: boolean): void {

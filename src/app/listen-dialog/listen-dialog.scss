@@ -276,6 +276,20 @@ h3 { font-size: 1rem; font-weight: 600; color: #f8fafc; }
   &:disabled { opacity: 0.4; cursor: default; }
 }
 
+.confirm-button {
+  padding: 6px 10px;
+  border: none;
+  border-radius: 8px;
+  background: var(--surface-3);
+  color: var(--text);
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  &.danger { background: #dc2626; color: #fff; }
+  &:hover { filter: brightness(1.1); }
+  &:disabled { opacity: 0.6; cursor: default; }
+}
+
 .empty { color: #64748b; margin: 0; }
 
 @media (max-width: 560px) {

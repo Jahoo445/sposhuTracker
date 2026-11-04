@@ -23,15 +23,14 @@ Live at **https://tracker.sposhu.ch**. It belongs to [SpoShu](https://sposhu.ch)
 | `src/config.ts` | Backend address and Google client ID |
 | `src/app/` | Pages (`login`, `list-selection`, `artist-albums`) and components (`listen-dialog`, `rating-summary`, `star-rating`) |
 | `src/services/` | Backend access (`catalog`, `listen`), login (`auth`, guard, interceptor, shared cookie) and the local caches |
-| `src/utils/` | Pure helpers with unit tests: episode filter and titles, rating averages, sorting |
+| `src/utils/` | Pure helpers: episode filter and titles, rating averages, sorting |
 
 ## Development
 
 ```bash
 npm install
 npx ng serve --port 4201   # SpoShu usually runs on 4200; the login is shared across localhost ports
-npx ng test --watch=false  # unit tests (Vitest)
-npx ng build               # production build into dist/
+npx ng build               # production build into dist/sposhu-tracker/browser
 ```
 
 For Google sign-in to work locally, `http://localhost:4201` has to be listed as an authorized JavaScript

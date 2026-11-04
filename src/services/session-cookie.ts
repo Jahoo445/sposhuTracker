@@ -23,7 +23,11 @@ function cookieAttributes(maxAgeSeconds: number): string {
   ].filter(Boolean).join('; ');
 }
 
-/** The token's payload is readable (only its signature is secret): user and expiry, or null. */
+/**
+ * The token's payload is readable (only its signature is secret): user and expiry, or null.
+ * Not a JWT: servering's createSession() (routes/sposhu.js) issues `<base64url JSON payload>.<HMAC>`,
+ * and `exp` is in milliseconds (Date.now()), not seconds. Change both sides together.
+ */
 function readPayload(token: string): (SessionUser & { exp: number }) | null {
   try {
     const base64 = token.split('.')[ 0 ].replace(/-/g, '+').replace(/_/g, '/');

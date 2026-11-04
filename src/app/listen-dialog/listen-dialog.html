@@ -97,29 +97,38 @@
           <div class="entry" [class.editing]="_editingId() === listen.id">
             <span class="entry-date">{{ listen.listenedAt | date: 'dd.MM.yyyy' }}</span>
             <app-star-rating [value]="_listenAverage(listen)" />
-            <button
-              type="button"
-              class="icon-button edit"
-              title="Bewertung bearbeiten"
-              aria-label="Bewertung bearbeiten"
-              (click)="_startEdit(listen)"
-            >
-              <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true">
-                <path fill="currentColor" d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25ZM20.71 7.04a1 1 0 0 0 0-1.41l-2.34-2.34a1 1 0 0 0-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83Z" />
-              </svg>
-            </button>
-            <button
-              type="button"
-              class="icon-button delete"
-              title="Eintrag löschen"
-              aria-label="Eintrag löschen"
-              [disabled]="_deletingId() === listen.id"
-              (click)="_delete(listen)"
-            >
-              <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true">
-                <path fill="currentColor" d="M9 3h6l1 2h4v2H4V5h4l1-2Zm-3 6h12l-1 12H7L6 9Zm4 2v8h2v-8h-2Zm4 0v8h2v-8h-2Z" />
-              </svg>
-            </button>
+            @if (_confirmingDeleteId() === listen.id) {
+              <button
+                type="button"
+                class="confirm-button danger"
+                [disabled]="_deletingId() === listen.id"
+                (click)="_delete(listen)"
+              >Löschen</button>
+              <button type="button" class="confirm-button" (click)="_confirmingDeleteId.set(null)">Abbrechen</button>
+            } @else {
+              <button
+                type="button"
+                class="icon-button edit"
+                title="Bewertung bearbeiten"
+                aria-label="Bewertung bearbeiten"
+                (click)="_startEdit(listen)"
+              >
+                <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true">
+                  <path fill="currentColor" d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25ZM20.71 7.04a1 1 0 0 0 0-1.41l-2.34-2.34a1 1 0 0 0-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83Z" />
+                </svg>
+              </button>
+              <button
+                type="button"
+                class="icon-button delete"
+                title="Eintrag löschen"
+                aria-label="Eintrag löschen"
+                (click)="_confirmingDeleteId.set(listen.id)"
+              >
+                <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true">
+                  <path fill="currentColor" d="M9 3h6l1 2h4v2H4V5h4l1-2Zm-3 6h12l-1 12H7L6 9Zm4 2v8h2v-8h-2Zm4 0v8h2v-8h-2Z" />
+                </svg>
+              </button>
+            }
           </div>
         } @empty {
           <p class="empty">Noch nicht gehört.</p>

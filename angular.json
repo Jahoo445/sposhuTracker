@@ -6,7 +6,7 @@
   },
   "newProjectRoot": "projects",
   "projects": {
-    "aBookChecker": {
+    "sposhu-tracker": {
       "projectType": "application",
       "schematics": {
         "@schematics/angular:component": {
@@ -61,16 +61,13 @@
           "builder": "@angular/build:dev-server",
           "configurations": {
             "production": {
-              "buildTarget": "aBookChecker:build:production"
+              "buildTarget": "sposhu-tracker:build:production"
             },
             "development": {
-              "buildTarget": "aBookChecker:build:development"
+              "buildTarget": "sposhu-tracker:build:development"
             }
           },
           "defaultConfiguration": "development"
-        },
-        "test": {
-          "builder": "@angular/build:unit-test"
         }
       }
     }
