@@ -125,6 +125,7 @@
         [attr.aria-label]="album.name + ' – hören & bewerten'"
         (click)="_openAlbum(album)"
         (keydown.enter)="_openAlbum(album)"
+        (keydown.space)="$event.preventDefault(); _openAlbum(album)"
       >
         <div class="cover">
           @if (album.images[0]?.url) {

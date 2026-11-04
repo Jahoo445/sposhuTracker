@@ -174,7 +174,8 @@ export class ArtistAlbums implements OnInit {
         this._pageCache.write(userId, artistId, { albums, topics, listens });
       }
 
-      await this._migrateLocalListenCounts(artistId, albums, listens);
+      // Runs after the page is shown; it handles its own errors and must not turn the page into an error.
+      void this._migrateLocalListenCounts(artistId, albums, listens);
     } catch {
       // With cached data on screen, a failed refresh isn't worth an error.
       if (!cached) {
